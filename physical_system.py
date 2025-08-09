@@ -1,61 +1,85 @@
-import math
-
 import numpy as np
+import math
 
 
 class Vector:
-    """三维矢量，兼容二维输入"""
+    """三维矢量类，封装矢量操作"""
 
     def __init__(self, x, y, z=None):
+        """
+        初始化矢量
+        :param x: x分量
+        :param y: y分量
+        :param z: z分量（可选，默认为0）
+        """
         self.data = np.array([x, y, z if z is not None else 0], dtype=float)
 
-    # 基本运算重载
     def __add__(self, other):
-        return Vector(*self.data + other.data)
+        """矢量加法"""
+        return Vector(*(self.data + other.data))
 
     def __sub__(self, other):
-        return Vector(*self.data - other.data)
+        """矢量减法"""
+        return Vector(*(self.data - other.data))
 
     def __mul__(self, scalar):
-        return Vector(*self.data * scalar)
+        """标量乘法"""
+        return Vector(*(self.data * scalar))
 
-    def dot(self, other):
-        return np.dot(self.data, other.data)
-
-    def cross(self, other):
-        return Vector(*np.cross(self.data, other.data))
+    def __rmul__(self, scalar):
+        """标量乘法（右侧）"""
+        return self.__mul__(scalar)
 
     def magnitude(self):
+        """计算矢量大小"""
         return np.linalg.norm(self.data)
 
     def normalized(self):
+        """返回归一化后的矢量"""
         mag = self.magnitude()
-        return Vector(*self.data / mag) if mag > 0 else self
+        if mag > 0:
+            return Vector(*(self.data / mag))
+        return Vector(0, 0, 0)  # 零矢量
 
-    # 兼容元组输出
+    def dot(self, other):
+        """点积"""
+        return np.dot(self.data, other.data)
+
+    def cross(self, other):
+        """叉积"""
+        return Vector(*np.cross(self.data, other.data))
+
     def as_tuple(self):
+        """转换为元组"""
         return tuple(self.data)
+
+    def __repr__(self):
+        return f"Vector({self.data[0]:.2f}, {self.data[1]:.2f}, {self.data[2]:.2f})"
 
 
 class PhysicalSystem:
-    """
-    表示物理系统中的单个物体，封装其力学属性和与其他系统的接触关系
-    """
+    """表示物理系统中的单个物体，封装其力学属性和接触关系"""
 
-    def __init__(self, system_id: str, mass: float, position: tuple):
+    def __init__(self, system_id: str, mass: float, position):
         """
         初始化物理系统
         :param system_id: 系统唯一标识符
         :param mass: 质量(kg)
-        :param position: 位置坐标(x, y, z)
+        :param position: 位置坐标，可以是元组或Vector对象
         """
         self.id = system_id
         self.mass = mass
-        self.position = position if len(position) == 3 else (position[0], position[1], 0)  # 兼容二维输入
-        self.forces = []  # 物体所受力的列表
+
+        # 位置处理：兼容元组输入或Vector对象
+        if isinstance(position, Vector):
+            self.position = position
+        else:
+            self.position = Vector(*position) if len(position) == 3 else Vector(position[0], position[1], 0)
+
+        self.forces = []  # 存储(名称, Vector)的列表
         self.contact_surfaces = []  # 接触面对象列表
-        self.acceleration = (0, 0, 0)  # 加速度向量(m/s²)
-        self.velocity = (0, 0, 0)  # 速度向量(m/s)
+        self.acceleration = Vector(0, 0, 0)  # 加速度向量(m/s²)
+        self.velocity = Vector(0, 0, 0)  # 速度向量(m/s)
 
     def add_gravity(self, g=9.8, direction=(0, -1, 0)):
         """
@@ -63,18 +87,14 @@ class PhysicalSystem:
         :param g: 重力加速度大小，默认9.8m/s²
         :param direction: 重力方向向量，默认(0,-1,0)表示向下
         """
-        # 归一化方向向量
-        dir_x, dir_y, dir_z = direction
-        magnitude = math.sqrt(dir_x**2 + dir_y**2 + dir_z**2)
-        if magnitude > 0:
-            dir_x, dir_y, dir_z = dir_x/magnitude, dir_y/magnitude, dir_z/magnitude
+        # 处理方向输入
+        if not isinstance(direction, Vector):
+            direction = Vector(*direction)
 
-        gravity_force = ('gravity',
-                        self.mass * g * dir_x,
-                        self.mass * g * dir_y,
-                        self.mass * g * dir_z)
-        self.forces.append(gravity_force)
-        return gravity_force
+        direction_vec = direction.normalized()
+        gravity_vec = direction_vec * (self.mass * g)
+        self.forces.append(('gravity', gravity_vec))
+        return gravity_vec
 
     def add_external_force(self, force_name: str, magnitude: float, direction):
         """
@@ -83,34 +103,33 @@ class PhysicalSystem:
         :param magnitude: 力的大小(N)
         :param direction: 力的方向
             二维情况: 与水平正方向的夹角(度)
-            三维情况: (x,y,z)方向向量或欧拉角(alpha,beta)
+            三维情况: (x,y,z)方向向量、欧拉角(alpha,beta)或Vector对象
         """
+        # 处理方向输入
         if isinstance(direction, (int, float)):
             # 二维情况: 角度输入
-            rad = direction * (3.14159 / 180)
-            force = (force_name, magnitude, math.cos(rad), math.sin(rad), 0)
+            rad = direction * (math.pi / 180)
+            force_vec = Vector(math.cos(rad), math.sin(rad), 0) * magnitude
+        elif isinstance(direction, Vector):
+            # 已经是矢量对象
+            force_vec = direction.normalized() * magnitude
+        elif len(direction) == 2:
+            # 欧拉角(alpha,beta)
+            alpha, beta = direction
+            alpha_rad = alpha * (math.pi / 180)
+            beta_rad = beta * (math.pi / 180)
+            x = math.cos(alpha_rad) * math.cos(beta_rad)
+            y = math.sin(alpha_rad) * math.cos(beta_rad)
+            z = math.sin(beta_rad)
+            force_vec = Vector(x, y, z).normalized() * magnitude
         else:
-            # 三维情况: 方向向量或欧拉角
-            if len(direction) == 2:
-                # 欧拉角(alpha,beta)
-                alpha, beta = direction
-                alpha_rad = alpha * (3.14159 / 180)
-                beta_rad = beta * (3.14159 / 180)
-                x = math.cos(alpha_rad) * math.cos(beta_rad)
-                y = math.sin(alpha_rad) * math.cos(beta_rad)
-                z = math.sin(beta_rad)
-            else:
-                # 方向向量(x,y,z)
-                x, y, z = direction
-                # 归一化
-                mag = math.sqrt(x**2 + y**2 + z**2)
-                if mag > 0:
-                    x, y, z = x/mag, y/mag, z/mag
+            # 方向向量(x,y,z)
+            if not isinstance(direction, Vector):
+                direction = Vector(*direction)
+            force_vec = direction.normalized() * magnitude
 
-            force = (force_name, magnitude, x, y, z)
-
-        self.forces.append(force)
-        return force
+        self.forces.append((force_name, force_vec))
+        return force_vec
 
     def add_contact_surface(self, surface_id: str, other_system, normal_direction, friction_coeff=0):
         """
@@ -119,19 +138,20 @@ class PhysicalSystem:
         :param other_system: 接触的另一系统对象
         :param normal_direction: 接触面法线方向
             二维情况: 法线角度(度)
-            三维情况: (x,y,z)法线向量
+            三维情况: (x,y,z)法线向量或Vector对象
         :param friction_coeff: 摩擦系数(0表示光滑)
         """
         # 处理法线方向
         if isinstance(normal_direction, (int, float)):
             # 二维情况: 角度转向量
-            rad = normal_direction * (3.14159 / 180)
-            normal_vec = (math.cos(rad), math.sin(rad), 0)
+            rad = normal_direction * (math.pi / 180)
+            normal_vec = Vector(math.cos(rad), math.sin(rad), 0).normalized()
+        elif isinstance(normal_direction, Vector):
+            # 已经是矢量对象
+            normal_vec = normal_direction.normalized()
         else:
             # 三维情况: 归一化向量
-            x, y, z = normal_direction
-            mag = math.sqrt(x**2 + y**2 + z**2)
-            normal_vec = (x/mag, y/mag, z/mag) if mag > 0 else (0, 0, 1)
+            normal_vec = Vector(*normal_direction).normalized()
 
         contact = {
             'id': surface_id,
@@ -146,95 +166,66 @@ class PhysicalSystem:
 
     def calculate_net_force(self):
         """
-        计算物体所受合力的分量
-        :return: (F_net_x, F_net_y, F_net_z)合力在x,y,z方向的分量
+        计算物体所受合力
+        :return: 合力Vector对象
         :raises: ZeroDivisionError 当物体质量为0时
         """
         if self.mass == 0:
             raise ZeroDivisionError("Cannot calculate net force for zero mass object")
 
-        F_net_x, F_net_y, F_net_z = 0, 0, 0
+        net_force = Vector(0, 0, 0)
+        for _, force_vec in self.forces:
+            net_force += force_vec
 
-        for force in self.forces:
-            if force[0] == 'gravity':
-                # 重力可能有x,y,z分量
-                if len(force) == 2:  # 旧版二维重力
-                    F_net_y += force[1]
-                else:  # 新版三维重力
-                    F_net_x += force[1]
-                    F_net_y += force[2]
-                    F_net_z += force[3]
-            else:
-                # 外部力分解
-                if len(force) == 3:  # 旧版二维力
-                    magnitude, angle = force[1], force[2]
-                    rad = angle * (3.14159 / 180)
-                    F_net_x += magnitude * math.cos(rad)
-                    F_net_y += magnitude * math.sin(rad)
-                else:  # 新版三维力
-                    magnitude, x, y, z = force[1], force[2], force[3], force[4]
-                    F_net_x += magnitude * x
-                    F_net_y += magnitude * y
-                    F_net_z += magnitude * z
-
-        # 处理接触力（后续与SystemManager配合实现）
-        return (F_net_x, F_net_y, F_net_z)
+        return net_force
 
     def update_kinematics(self, time_delta=0.1):
         """
         根据当前合力更新运动状态（牛顿第二定律）
         :param time_delta: 时间间隔(s)
         """
-        F_net_x, F_net_y, F_net_z = self.calculate_net_force()
-        ax = F_net_x / self.mass
-        ay = F_net_y / self.mass
-        az = F_net_z / self.mass
-        self.acceleration = (ax, ay, az)
+        net_force = self.calculate_net_force()
+        self.acceleration = net_force * (1 / self.mass)  # F = ma
 
         # 更新速度和位置（欧拉法）
-        vx, vy, vz = self.velocity
-        px, py, pz = self.position
+        # v = v0 + a * dt
+        self.velocity += self.acceleration * time_delta
 
-        new_vx = vx + ax * time_delta
-        new_vy = vy + ay * time_delta
-        new_vz = vz + az * time_delta
-        new_px = px + vx * time_delta + 0.5 * ax * time_delta**2
-        new_py = py + vy * time_delta + 0.5 * ay * time_delta**2
-        new_pz = pz + vz * time_delta + 0.5 * az * time_delta**2
-
-        self.velocity = (new_vx, new_vy, new_vz)
-        self.position = (new_px, new_py, new_pz)
+        # p = p0 + v0 * dt + 0.5 * a * dt^2
+        self.position += self.velocity * time_delta + self.acceleration * (0.5 * time_delta ** 2)
 
     def to_dict(self):
         """将系统状态转为字典格式，便于JSON序列化"""
-        # 处理力数据以保持兼容性
+
+        # 序列化矢量对象
+        def serialize_vector(vec):
+            if isinstance(vec, Vector):
+                return vec.as_tuple()
+            return vec
+
+        # 处理力数据
         serialized_forces = []
         for force in self.forces:
-            if force[0] == 'gravity':
-                if len(force) == 2:  # 旧版二维重力
-                    serialized_forces.append(('gravity', force[1]))
-                else:  # 新版三维重力
-                    serialized_forces.append(('gravity', force[1], force[2], force[3]))
-            else:
-                if len(force) == 3:  # 旧版二维力
-                    serialized_forces.append((force[0], force[1], force[2]))
-                else:  # 新版三维力
-                    serialized_forces.append((force[0], force[1], force[2], force[3], force[4]))
+            name, vec = force
+            serialized_forces.append((name, vec.as_tuple()))
+
+        # 处理接触面
+        serialized_contacts = []
+        for cs in self.contact_surfaces:
+            contact = {
+                'id': cs['id'],
+                'other_system': cs['system2'].id,
+                'normal_direction': serialize_vector(cs['normal_direction']),
+                'friction_coeff': cs['friction_coeff']
+            }
+            serialized_contacts.append(contact)
 
         return {
             'id': self.id,
             'mass': self.mass,
-            'position': self.position,
-            'velocity': self.velocity,
-            'acceleration': self.acceleration,
+            'position': serialize_vector(self.position),
+            'velocity': serialize_vector(self.velocity),
+            'acceleration': serialize_vector(self.acceleration),
             'forces': serialized_forces,
-            'contact_surfaces': [
-                {
-                    'id': cs['id'],
-                    'other_system': cs['system2'].id,
-                    'normal_direction': cs['normal_direction'],
-                    'friction_coeff': cs['friction_coeff']
-                }
-                for cs in self.contact_surfaces
-            ]
+            'contact_surfaces': serialized_contacts
         }
