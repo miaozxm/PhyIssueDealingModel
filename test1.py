@@ -2,17 +2,40 @@ import math
 
 
 class Dimension:
-    """量纲类，表示物理量的七个基本量纲"""
+    """物理量纲类，用于表示和操作物理量的量纲。
+    
+    该类实现了国际单位制(SI)中的七个基本量纲：
+    - 长度(L)
+    - 质量(M)
+    - 时间(T)
+    - 电流(I)
+    - 热力学温度(Θ)
+    - 物质的量(N)
+    - 发光强度(J)
+    
+    支持量纲的加减乘除运算，用于物理量的量纲一致性检查。
+    """
 
     def __init__(self,
-                 length: float = 0.0,  # 长度 (L)
-                 mass: float = 0.0,  # 质量 (M)
-                 time: float = 0.0,  # 时间 (T)
-                 current: float = 0.0,  # 电流 (I)
-                 temperature: float = 0.0,  # 热力学温度 (Θ)
-                 amount: float = 0.0,  # 物质的量 (N)
-                 luminous_intensity: float = 0.0  # 发光强度 (J)
+                 length: float = 0.0,        # 长度量纲指数 (L)
+                 mass: float = 0.0,          # 质量量纲指数 (M)
+                 time: float = 0.0,          # 时间量纲指数 (T)
+                 current: float = 0.0,       # 电流量纲指数 (I)
+                 temperature: float = 0.0,   # 温度量纲指数 (Θ)
+                 amount: float = 0.0,        # 物质的量纲指数 (N)
+                 luminous_intensity: float = 0.0  # 发光强度量纲指数 (J)
                  ):
+        """初始化量纲对象。
+        
+        Args:
+            length: 长度量纲指数，默认为0
+            mass: 质量量纲指数，默认为0
+            time: 时间量纲指数，默认为0
+            current: 电流量纲指数，默认为0
+            temperature: 温度量纲指数，默认为0
+            amount: 物质的量纲指数，默认为0
+            luminous_intensity: 发光强度量纲指数，默认为0
+        """
         self.exponents = {
             'length': length,
             'mass': mass,
@@ -24,34 +47,103 @@ class Dimension:
         }
 
     def __getattr__(self, name):
+        """动态获取量纲属性。
+        
+        允许通过属性方式访问量纲指数，如dim.length获取长度量纲指数。
+        
+        Args:
+            name: 要获取的量纲名称
+            
+        Returns:
+            对应的量纲指数
+            
+        Raises:
+            AttributeError: 当请求的量纲名称不存在时
+        """
         if name in self.exponents:
             return self.exponents[name]
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def __eq__(self, other):
+        """比较两个量纲是否相等。
+        
+        两个量纲相等当且仅当所有量纲指数都相等。
+        
+        Args:
+            other: 另一个Dimension对象
+            
+        Returns:
+            bool: 如果所有量纲指数相等返回True，否则返回False
+        """
         return all(self.exponents[k] == other.exponents[k] for k in self.exponents)
 
     def __mul__(self, other):
+        """量纲相乘运算。
+        
+        物理量相乘时，量纲指数相加。例如：
+        length^1 * length^2 = length^3
+        length^1 * time^-1 = length^1 time^-1 (速度量纲)
+        
+        Args:
+            other: 另一个Dimension对象
+            
+        Returns:
+            Dimension: 新的量纲对象，其指数是两个量纲对应指数之和
+        """
         return Dimension(**{
             k: self.exponents[k] + other.exponents[k] for k in self.exponents
         })
 
     def __truediv__(self, other):
+        """量纲相除运算。
+        
+        物理量相除时，量纲指数相减。例如：
+        length^1 / time^1 = length^1 time^-1 (速度量纲)
+        mass^1 length^1 / time^2 = mass^1 length^1 time^-2 (力量纲)
+        
+        Args:
+            other: 另一个Dimension对象
+            
+        Returns:
+            Dimension: 新的量纲对象，其指数是两个量纲对应指数之差
+        """
         return Dimension(**{
             k: self.exponents[k] - other.exponents[k] for k in self.exponents
         })
 
     def __repr__(self):
+        """生成量纲的字符串表示。
+        
+        只显示非零的量纲指数，格式为"Dimension(长度^1, 时间^-1)"等。
+        
+        Returns:
+            str: 量纲的字符串表示
+        """
         parts = [f"{k}^{v}" for k, v in self.exponents.items() if v != 0]
         return f"Dimension({', '.join(parts)})" if parts else "Dimension()"
 
     def as_dict(self, compact=False):
+        """将量纲转换为字典形式。
+        
+        Args:
+            compact: 是否只包含非零量纲，默认为False
+            
+        Returns:
+            dict: 量纲的字典表示，键为量纲名称，值为对应指数
+        """
         if compact:
             return {k: v for k, v in self.exponents.items() if v != 0}
         return self.exponents.copy()
 
     @classmethod
     def common_quantities(cls):
+        """获取常见物理量的标准量纲。
+        
+        返回一个字典，包含常见物理量(如速度、加速度、力等)的标准量纲。
+        
+        Returns:
+            dict: 键为物理量名称，值为对应的Dimension对象
+        """
         return {
             'length': Dimension(length=1),
             'mass': Dimension(mass=1),
@@ -80,9 +172,31 @@ class Dimension:
 
 
 class Vector:
-    """三维矢量类，支持量纲管理"""
+    """三维矢量类，支持量纲管理。
+    
+    该类实现了带量纲的三维矢量运算，包括：
+    - 矢量加减法（要求量纲相同）
+    - 矢量与标量乘法（保持原量纲）
+    - 矢量归一化（结果无量纲）
+    - 点积运算（结果无量纲）
+    - 叉积运算（量纲为两个矢量量纲之和）
+    
+    属性：
+        x (float): x分量
+        y (float): y分量 
+        z (float): z分量
+        dimension (Dimension): 矢量的量纲
+    """
 
     def __init__(self, x, y, z=0.0, dimension=Dimension()):
+        """初始化三维矢量。
+        
+        Args:
+            x: x分量值
+            y: y分量值
+            z: z分量值，默认为0.0
+            dimension: 矢量的量纲，默认为无量纲
+        """
         # 确保所有分量都是float类型
         self.x = float(x)
         self.y = float(y)
@@ -91,10 +205,27 @@ class Vector:
 
     @property
     def data(self):
-        """返回分量的元组"""
+        """获取矢量分量的元组形式。
+        
+        Returns:
+            tuple: (x, y, z)分量的元组
+        """
         return self.x, self.y, self.z
 
     def __add__(self, other):
+        """矢量加法运算。
+        
+        要求两个矢量量纲相同，否则抛出ValueError。
+        
+        Args:
+            other: 另一个Vector对象
+            
+        Returns:
+            Vector: 新的矢量，分量为两个矢量分量之和
+            
+        Raises:
+            ValueError: 当量纲不匹配时
+        """
         if self.dimension != other.dimension:
             raise ValueError("矢量量纲不匹配，无法相加")
         return Vector(
@@ -105,6 +236,19 @@ class Vector:
         )
 
     def __sub__(self, other):
+        """矢量减法运算。
+        
+        要求两个矢量量纲相同，否则抛出ValueError。
+        
+        Args:
+            other: 另一个Vector对象
+            
+        Returns:
+            Vector: 新的矢量，分量为两个矢量分量之差
+            
+        Raises:
+            ValueError: 当量纲不匹配时
+        """
         if self.dimension != other.dimension:
             raise ValueError("矢量量纲不匹配，无法相减")
         return Vector(
@@ -115,6 +259,19 @@ class Vector:
         )
 
     def __mul__(self, scalar):
+        """矢量与标量乘法（右乘）。
+        
+        矢量与标量相乘时保持原量纲不变。
+        
+        Args:
+            scalar: 标量值（int或float）
+            
+        Returns:
+            Vector: 新的矢量，分量为原分量乘以标量
+            
+        Raises:
+            TypeError: 当标量不是数值类型时
+        """
         if not isinstance(scalar, (int, float)):
             raise TypeError("标量必须是数值类型")
         return Vector(
@@ -125,18 +282,38 @@ class Vector:
         )
 
     def __rmul__(self, scalar):
+        """矢量与标量乘法（左乘）。
+        
+        与__mul__功能相同，支持标量在左侧的乘法。
+        """
         return self.__mul__(scalar)
 
     def __neg__(self):
-        """支持一元负号操作"""
+        """一元负号操作，返回矢量的负值。
+        
+        Returns:
+            Vector: 新的矢量，分量为原分量的负值，量纲不变
+        """
         return Vector(-self.x, -self.y, -self.z, dimension=self.dimension)
 
     def magnitude(self):
-        """计算矢量大小"""
+        """计算矢量的大小（模）。
+        
+        计算公式：sqrt(x² + y² + z²)
+        
+        Returns:
+            float: 矢量的大小
+        """
         return math.sqrt(self.x ** 2 + self.y ** 2 + self.z ** 2)
 
     def normalized(self):
-        """返回归一化后的矢量（无量纲）"""
+        """返回归一化后的矢量（方向相同，大小为1）。
+        
+        归一化后的矢量无量纲。
+        
+        Returns:
+            Vector: 归一化后的矢量
+        """
         mag = self.magnitude()
         if mag > 0:
             return Vector(
@@ -148,13 +325,37 @@ class Vector:
         return Vector(0, 0, 0, dimension=Dimension())
 
     def dot(self, other):
-        """点积（返回无量纲数值）"""
+        """计算两个矢量的点积（内积）。
+        
+        点积结果是一个标量，无量纲。
+        计算公式：x1*x2 + y1*y2 + z1*z2
+        
+        Args:
+            other: 另一个Vector对象
+            
+        Returns:
+            float: 点积结果
+            
+        Raises:
+            ValueError: 当量纲不匹配时
+        """
         if self.dimension != other.dimension:
             raise ValueError("矢量量纲不匹配，无法计算点积")
         return self.x * other.x + self.y * other.y + self.z * other.z
 
     def cross(self, other):
-        """叉积（量纲为两个矢量量纲之和）"""
+        """计算两个矢量的叉积（外积）。
+        
+        叉积结果是一个新矢量，其量纲为两个矢量量纲之和。
+        计算公式：
+        (y1*z2 - z1*y2, z1*x2 - x1*z2, x1*y2 - y1*x2)
+        
+        Args:
+            other: 另一个Vector对象
+            
+        Returns:
+            Vector: 叉积结果矢量
+        """
         new_dimension = Dimension(
             self.dimension.length + other.dimension.length,
             self.dimension.mass + other.dimension.mass,
@@ -172,55 +373,141 @@ class Vector:
         )
 
     def as_tuple(self):
-        """转换为元组"""
+        """将矢量转换为元组形式。
+        
+        Returns:
+            tuple: (x, y, z)分量的元组
+        """
         return self.x, self.y, self.z
 
     def __repr__(self):
+        """生成矢量的字符串表示。
+        
+        格式示例：Vector(1.00, 2.00, 3.00) with Dimension(length^1, time^-1)
+        
+        Returns:
+            str: 矢量的字符串表示
+        """
         return (f"Vector({self.x:.2f}, {self.y:.2f}, {self.z:.2f}) "
                 f"with {self.dimension}")
 
 
 class Displacement(Vector):
-    """位移矢量类"""
+    """位移矢量类，表示物体的位置变化。
+    
+    量纲：[长度]^1
+    """
 
     def __init__(self, x, y, z=0.0):
+        """初始化位移矢量。
+        
+        Args:
+            x: x方向位移
+            y: y方向位移
+            z: z方向位移，默认为0.0
+        """
         super().__init__(x, y, z, dimension=Dimension(length=1))
 
 
 class Velocity(Vector):
-    """速度矢量类"""
+    """速度矢量类，表示物体的运动速度。
+    
+    量纲：[长度]^1 [时间]^-1
+    """
 
     def __init__(self, x, y, z=0.0):
+        """初始化速度矢量。
+        
+        Args:
+            x: x方向速度分量
+            y: y方向速度分量
+            z: z方向速度分量，默认为0.0
+        """
         super().__init__(x, y, z, dimension=Dimension(length=1, time=-1))
 
 
 class Force(Vector):
-    """力矢量类"""
+    """力矢量类，表示物体受到的力。
+    
+    量纲：[质量]^1 [长度]^1 [时间]^-2
+    """
 
     def __init__(self, x, y, z=0.0):
+        """初始化力矢量。
+        
+        Args:
+            x: x方向力分量
+            y: y方向力分量
+            z: z方向力分量，默认为0.0
+        """
         super().__init__(x, y, z, dimension=Dimension(length=1, mass=1, time=-2))
 
 
 class Acceleration(Vector):
-    """加速度矢量类"""
+    """加速度矢量类，表示物体的加速度。
+    
+    量纲：[长度]^1 [时间]^-2
+    """
 
     def __init__(self, x, y, z=0.0):
+        """初始化加速度矢量。
+        
+        Args:
+            x: x方向加速度分量
+            y: y方向加速度分量
+            z: z方向加速度分量，默认为0.0
+        """
         super().__init__(x, y, z, dimension=Dimension(length=1, time=-2))
 
 
 class PhysicalEntity:
-    """物理实体基类（纯数据类）"""
+    """物理实体基类，表示参与物理模拟的物体。
+    
+    属性：
+        id (str): 实体唯一标识符
+        mass (float): 质量(kg)
+        position (Displacement): 位置矢量
+        velocity (Velocity): 速度矢量
+        acceleration (Acceleration): 加速度矢量
+        forces (list): 作用在实体上的力列表，每个元素为(force_name, force)元组
+    """
 
     def __init__(self, entity_id: str, mass: float, position, velocity=(0, 0, 0), acceleration=(0, 0, 0)):
+        """初始化物理实体。
+        
+        Args:
+            entity_id: 实体唯一标识符
+            mass: 质量(kg)
+            position: 位置，可以是元组、Vector或Displacement对象
+            velocity: 速度，可以是元组、Vector或Velocity对象，默认为(0,0,0)
+            acceleration: 加速度，可以是元组、Vector或Acceleration对象，默认为(0,0,0)
+        """
         self.id = entity_id
         self.mass = mass
         self.position = self._process_vector(position, Displacement)
         self.velocity = self._process_vector(velocity, Velocity)
         self.acceleration = self._process_vector(acceleration, Acceleration)
-        self.forces = []
+        self.forces = []  # 存储(force_name, force)元组
 
     @staticmethod
     def _process_vector(input_data, vector_class):
+        """将输入数据转换为指定类型的矢量对象。
+        
+        支持多种输入格式：
+        - 已经是目标矢量类实例
+        - Vector对象
+        - 元组(2或3个元素)
+        
+        Args:
+            input_data: 输入数据
+            vector_class: 目标矢量类(Displacement/Velocity/Acceleration)
+            
+        Returns:
+            转换后的矢量对象
+            
+        Raises:
+            TypeError: 当输入类型不支持时
+        """
         if isinstance(input_data, vector_class):
             return input_data
         elif isinstance(input_data, Vector):
@@ -232,6 +519,11 @@ class PhysicalEntity:
                 return vector_class(input_data[0], input_data[1], 0)
 
     def __repr__(self):
+        """生成实体的字符串表示。
+        
+        Returns:
+            str: 包含ID、质量和位置、速度的字符串
+        """
         return (f"PhysicalEntity({self.id}, mass={self.mass}kg, "
                 f"position={self.position.as_tuple()}, "
                 f"velocity={self.velocity.as_tuple()})")
@@ -489,12 +781,30 @@ class ContactSurface:
 
 
 class MasslessEntity(PhysicalEntity):
-    """质量为零的物理实体（如轻杆、轻绳）"""
+    """质量为零的物理实体，如轻杆、轻绳等理想模型。
+    
+    特性：
+    - 质量固定为0
+    - 不受重力影响
+    - 合力必须为零(物理约束)
+    """
 
     def __init__(self, entity_id: str, position, **kwargs):
+        """初始化质量为零的实体。
+        
+        Args:
+            entity_id: 实体唯一标识符
+            position: 位置
+            **kwargs: 其他传递给PhysicalEntity的参数
+        """
         super().__init__(entity_id, 0.0, position, **kwargs)
 
     def __repr__(self):
+        """生成质量为零实体的字符串表示。
+        
+        Returns:
+            str: 包含ID的字符串
+        """
         return f"MasslessEntity({self.id})"
 
 
